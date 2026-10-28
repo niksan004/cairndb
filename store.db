@@ -1,0 +1,6 @@
+set user nik
+set year 2026
+del year
+set name cairndb
+set day today
+del day
