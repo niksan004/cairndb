@@ -1,8 +1,8 @@
-use cairndb::kv::{self, KvStore};
+use cairndb::kv::KvStore;
 use std::io::{self, Write};
 
 fn main() {
-    let mut store = match kv::KvStore::open_and_replay("store.db") {
+    let mut store = match KvStore::open_and_replay("store.db") {
         Ok(store) => store,
         Err(e) => {
             eprintln!("failed to open and replay db {}", e);
@@ -36,6 +36,19 @@ fn run_repl(store: &mut KvStore) -> io::Result<()> {
             break;
         }
 
+        if line == ".help" {
+            println!(
+                r#"
+available commands:
+    set <key> <value> - to save a key to the kv store
+    get <key> - to get the value associated with a key
+    del <key> - delete a key-value pair
+    list - list all available key-value pairs
+            "#
+            );
+            continue;
+        }
+
         match execute(store, line) {
             Ok(output) => println!("{}", output),
             Err(e) => eprintln!("error: {}", e),
@@ -63,17 +76,11 @@ fn execute(store: &mut KvStore, line: &str) -> io::Result<String> {
                 Ok(format!("key not found {}", key))
             }
         }
-        ["list"] => {
-            println!(
-                "{}",
-                store
-                    .iter()
-                    .map(|(k, v)| format!("{k} = {v}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
-            Ok("Ok".to_string())
-        }
+        ["list"] => Ok(store
+            .iter()
+            .map(|(k, v)| format!("{k} = {v}"))
+            .collect::<Vec<_>>()
+            .join("\n")),
         _ => Ok("unknown command".to_string()),
     }
 }

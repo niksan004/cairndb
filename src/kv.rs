@@ -3,7 +3,8 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::Path;
 
-pub enum Record {
+#[derive(Debug, PartialEq)]
+enum Record {
     Set { key: String, val: String },
     Del { key: String },
 }
@@ -35,6 +36,7 @@ impl Record {
     }
 }
 
+#[derive(Debug)]
 pub struct KvStore {
     map: HashMap<String, String>,
     file: File,
@@ -84,6 +86,7 @@ impl KvStore {
         self.file.write_all(line.as_bytes())
     }
 
+    // keys must not contains whitespace; values must not contain "\n"
     pub fn set(&mut self, key: String, val: String) -> io::Result<()> {
         let record = Record::Set { key, val };
         self.append(&record)?;
@@ -109,5 +112,63 @@ impl KvStore {
 
     pub fn iter(&self) -> impl Iterator<Item = (&String, &String)> {
         self.map.iter()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+    use tempfile;
+
+    #[test]
+    fn round_trip_record() {
+        let r = Record::Set {
+            key: "key".to_string(),
+            val: "val".to_string(),
+        };
+        assert_eq!(Record::decode(&r.encode()), Some(r));
+    }
+
+    #[test]
+    fn decode_reject_line() {
+        let lines = ["set ", "get ", "del", ""];
+        assert_eq!(lines.map(Record::decode), [None, None, None, None]);
+    }
+
+    #[test]
+    fn persistance() -> io::Result<()> {
+        // set up store then drop it
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        let mut store = KvStore::open_and_replay(&path)?;
+
+        store.set("k1".to_string(), "v1".to_string())?;
+        store.set("k1".to_string(), "v2".to_string())?;
+        store.set("to_del".to_string(), "to_del".to_string())?;
+        store.delete("to_del")?;
+        drop(store);
+
+        // replay it and check if all values are correct
+        let store = KvStore::open_and_replay(&path)?;
+        assert_eq!(store.get("k1"), Some(&"v2".to_string()));
+        assert_eq!(store.get("to_del"), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn delete_missing_key() -> io::Result<()> {
+        // set up store then drop it
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        let mut store = KvStore::open_and_replay(&path)?;
+
+        assert!(matches!(store.delete("to_del"), Ok(false)));
+        //check for tombstone
+        assert_eq!(fs::read_to_string(&path)?, "");
+
+        Ok(())
     }
 }
