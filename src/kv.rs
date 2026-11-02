@@ -86,7 +86,7 @@ impl KvStore {
         self.file.write_all(line.as_bytes())
     }
 
-    // keys must not contains whitespace; values must not contain "\n"
+    // keys must not contain whitespace; values must not contain "\n"
     pub fn set(&mut self, key: String, val: String) -> io::Result<()> {
         let record = Record::Set { key, val };
         self.append(&record)?;
@@ -120,10 +120,9 @@ mod tests {
     use std::fs;
 
     use super::*;
-    use tempfile;
 
     #[test]
-    fn round_trip_record() {
+    fn round_trip_record_set() {
         let r = Record::Set {
             key: "key".to_string(),
             val: "val".to_string(),
@@ -132,22 +131,30 @@ mod tests {
     }
 
     #[test]
+    fn round_trip_record_del() {
+        let r = Record::Del {
+            key: "key".to_string(),
+        };
+        assert_eq!(Record::decode(&r.encode()), Some(r));
+    }
+
+    #[test]
     fn decode_reject_line() {
-        let lines = ["set ", "get ", "del", ""];
+        let lines = ["set key", "get ", "del", ""];
         assert_eq!(lines.map(Record::decode), [None, None, None, None]);
     }
 
     #[test]
-    fn persistance() -> io::Result<()> {
-        // set up store then drop it
-        let dir = tempfile::tempdir().unwrap();
+    fn persistence() -> io::Result<()> {
+        // set up store
+        let dir = tempfile::tempdir()?;
         let path = dir.path().join("test.db");
         let mut store = KvStore::open_and_replay(&path)?;
 
         store.set("k1".to_string(), "v1".to_string())?;
         store.set("k1".to_string(), "v2".to_string())?;
         store.set("to_del".to_string(), "to_del".to_string())?;
-        store.delete("to_del")?;
+        assert!(store.delete("to_del")?);
         drop(store);
 
         // replay it and check if all values are correct
@@ -161,7 +168,7 @@ mod tests {
     #[test]
     fn delete_missing_key() -> io::Result<()> {
         // set up store then drop it
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir()?;
         let path = dir.path().join("test.db");
         let mut store = KvStore::open_and_replay(&path)?;
 
