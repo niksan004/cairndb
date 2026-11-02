@@ -1,3 +1,4 @@
+use crate::error::{self, Error, Result};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, BufReader, Write};
@@ -55,7 +56,7 @@ fn apply(map: &mut HashMap<String, String>, record: Record) {
 }
 
 impl KvStore {
-    pub fn open_and_replay(path: impl AsRef<Path>) -> io::Result<KvStore> {
+    pub fn open_and_replay(path: impl AsRef<Path>) -> Result<KvStore> {
         // open file
         let file = OpenOptions::new()
             .read(true)
@@ -67,11 +68,13 @@ impl KvStore {
         let mut map = HashMap::new();
 
         let reader = BufReader::new(&file);
-        for line in reader.lines() {
+        for (i, line) in reader.lines().enumerate() {
             let line = line?;
             let Some(record) = Record::decode(&line) else {
-                eprintln!("skipping corrupt line {}", line);
-                continue;
+                return Err(Error::Corrupt {
+                    line_no: i + 1,
+                    line,
+                });
             };
             apply(&mut map, record);
         }
@@ -81,13 +84,14 @@ impl KvStore {
     }
 
     // appends a record to the log
-    fn append(&mut self, record: &Record) -> io::Result<()> {
+    fn append(&mut self, record: &Record) -> Result<()> {
         let line = format!("{}\n", record.encode());
-        self.file.write_all(line.as_bytes())
+        self.file.write_all(line.as_bytes())?;
+        Ok(())
     }
 
     // keys must not contain whitespace; values must not contain "\n"
-    pub fn set(&mut self, key: String, val: String) -> io::Result<()> {
+    pub fn set(&mut self, key: String, val: String) -> Result<()> {
         let record = Record::Set { key, val };
         self.append(&record)?;
         apply(&mut self.map, record);
@@ -98,7 +102,7 @@ impl KvStore {
         self.map.get(key)
     }
 
-    pub fn delete(&mut self, key: &str) -> io::Result<bool> {
+    pub fn delete(&mut self, key: &str) -> Result<bool> {
         if !self.map.contains_key(key) {
             return Ok(false);
         }
@@ -145,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn persistence() -> io::Result<()> {
+    fn persistence() -> Result<()> {
         // set up store
         let dir = tempfile::tempdir()?;
         let path = dir.path().join("test.db");
@@ -166,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn delete_missing_key() -> io::Result<()> {
+    fn delete_missing_key() -> Result<()> {
         // set up store then drop it
         let dir = tempfile::tempdir()?;
         let path = dir.path().join("test.db");

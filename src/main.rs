@@ -1,3 +1,4 @@
+use cairndb::error::{Error, Result};
 use cairndb::kv::KvStore;
 use std::io::{self, Write};
 
@@ -16,7 +17,7 @@ fn main() {
     }
 }
 
-fn run_repl(store: &mut KvStore) -> io::Result<()> {
+fn run_repl(store: &mut KvStore) -> Result<()> {
     let mut input = String::new();
     loop {
         print!("cairndb> ");
@@ -58,7 +59,7 @@ available commands:
     Ok(())
 }
 
-fn execute(store: &mut KvStore, line: &str) -> io::Result<String> {
+fn execute(store: &mut KvStore, line: &str) -> Result<String> {
     let split_line: Vec<&str> = line.splitn(3, ' ').collect();
     match split_line[..] {
         ["set", key, val] => {
