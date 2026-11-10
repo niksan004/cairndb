@@ -1,4 +1,4 @@
-use cairndb::error::{Error, Result};
+use cairndb::error::Result;
 use cairndb::kv::KvStore;
 use std::io::{self, Write};
 
@@ -6,7 +6,7 @@ fn main() {
     let mut store = match KvStore::open_and_replay("store.db") {
         Ok(store) => store,
         Err(e) => {
-            eprintln!("failed to open and replay db {}", e);
+            eprintln!("failed to open and replay db: {}", e);
             std::process::exit(1);
         }
     };

@@ -1,7 +1,7 @@
-use crate::error::{self, Error, Result};
+use crate::error::{Error, Result};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
 #[derive(Debug, PartialEq)]
@@ -180,6 +180,19 @@ mod tests {
         //check for tombstone
         assert_eq!(fs::read_to_string(&path)?, "");
 
+        Ok(())
+    }
+
+    #[test]
+    fn kv_replay_corrupt_line() -> Result<()> {
+        // set up store
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("test.db");
+        fs::write(&path, "set a 1\ncorrupt line\nset b 2\n")?;
+        assert!(matches!(
+            KvStore::open_and_replay(&path),
+            Err(Error::Corrupt { line_no: 2, line }) if line == "corrupt line"
+        ));
         Ok(())
     }
 }
